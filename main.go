@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -52,6 +54,33 @@ func get_sessiontoken(client http.Client, logging bool) string {
 	return sessionToken
 }
 
+func get_secret_question(client http.Client, roll_number string, logging bool) string {
+	data := map[string]string{"user_id": roll_number}
+	jsonValue, _ := json.Marshal(data)
+
+	req, err := http.NewRequest("POST", SECRET_QUESTION_URL, bytes.NewBuffer(jsonValue))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if logging {
+		log.Println("Fetched Security Question")
+	}
+
+	return string(body)
+}
+
 func main() {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -60,4 +89,5 @@ func main() {
 
 	client := http.Client{Jar: jar}
 	fmt.Println(get_sessiontoken(client, true))
+	fmt.Println(get_secret_question(client, "20CS10020", true))
 }
