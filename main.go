@@ -112,6 +112,29 @@ func is_otp_required() bool {
 	return pinger.Statistics().PacketsRecv != 1
 }
 
+func request_otp(client http.Client, loginDetails LoginDetails, logging bool) {
+	data := url.Values{}
+	data.Set("typeee", "SI")
+	data.Set("loginid", loginDetails.user_id)
+	// data.Set("pass", loginDetails.password) this field seems to be unnecessary according to testing
+
+	req, err := http.NewRequest("POST", OTP_URL, strings.NewReader(data.Encode()))
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	res, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	if logging {
+		log.Println("Requested OTP")
+	}
+}
+
 func main() {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -121,6 +144,7 @@ func main() {
 	client := http.Client{Jar: jar}
 	fmt.Println(get_sessiontoken(client, true))
 	fmt.Println(get_secret_question(client, "20CS10020", true))
-	fmt.Println(get_login_details("20CS10020", "password", "answer", "token"))
+	loginDetails := get_login_details("20CS10020", "password", "answer", "token")
 	fmt.Println(is_otp_required())
+	request_otp(client, loginDetails, true)
 }
