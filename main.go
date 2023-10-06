@@ -135,6 +135,21 @@ func request_otp(client http.Client, loginDetails LoginDetails, logging bool) {
 	}
 }
 
+func session_alive(client http.Client) bool {
+	req, err := http.NewRequest("GET", WELCOMEPAGE_URL, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	return res.ContentLength == 1034
+}
+
 func main() {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -143,8 +158,9 @@ func main() {
 
 	client := http.Client{Jar: jar}
 	fmt.Println(get_sessiontoken(client, true))
-	fmt.Println(get_secret_question(client, "20CS10020", true))
-	loginDetails := get_login_details("20CS10020", "password", "answer", "token")
-	fmt.Println(is_otp_required())
-	request_otp(client, loginDetails, true)
+	// fmt.Println(get_secret_question(client, "20CS10020", true))
+	// loginDetails := get_login_details("20CS10020", "password", "answer", "token")
+	// fmt.Println(is_otp_required())
+	// request_otp(client, loginDetails, true)
+	// fmt.Println(session_alive(client))
 }
