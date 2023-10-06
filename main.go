@@ -82,6 +82,18 @@ func get_secret_question(client http.Client, roll_number string, logging bool) s
 	return string(body)
 }
 
+func get_login_details(roll_number string, password string, secret_answer string, sessionToken string) LoginDetails {
+	loginDetails := LoginDetails{
+		user_id:      roll_number,
+		password:     password,
+		answer:       secret_answer,
+		sessionToken: sessionToken,
+		requestedUrl: HOMEPAGE_URL,
+	}
+
+	return loginDetails
+}
+
 func main() {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -91,4 +103,5 @@ func main() {
 	client := http.Client{Jar: jar}
 	fmt.Println(get_sessiontoken(client, true))
 	fmt.Println(get_secret_question(client, "20CS10020", true))
+	fmt.Println(get_login_details("20CS10020", "password", "answer", "token"))
 }
