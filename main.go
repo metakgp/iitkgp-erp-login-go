@@ -8,8 +8,10 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/anaskhan96/soup"
+	"github.com/go-ping/ping"
 )
 
 type LoginDetails struct {
@@ -94,6 +96,22 @@ func get_login_details(roll_number string, password string, secret_answer string
 	return loginDetails
 }
 
+func is_otp_required() bool {
+	pinger, err := ping.NewPinger(PING_URL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	pinger.Count = 1
+	pinger.Timeout = time.Duration(4 * float64(time.Second))
+
+	err = pinger.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return pinger.Statistics().PacketsRecv != 1
+}
+
 func main() {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -104,4 +122,5 @@ func main() {
 	fmt.Println(get_sessiontoken(client, true))
 	fmt.Println(get_secret_question(client, "20CS10020", true))
 	fmt.Println(get_login_details("20CS10020", "password", "answer", "token"))
+	fmt.Println(is_otp_required())
 }
