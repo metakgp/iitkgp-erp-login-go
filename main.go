@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
+	"strings"
 
 	"github.com/anaskhan96/soup"
 )
@@ -55,13 +55,14 @@ func get_sessiontoken(client http.Client, logging bool) string {
 }
 
 func get_secret_question(client http.Client, roll_number string, logging bool) string {
-	data := map[string]string{"user_id": roll_number}
-	jsonValue, _ := json.Marshal(data)
+	data := url.Values{}
+	data.Set("user_id", roll_number)
 
-	req, err := http.NewRequest("POST", SECRET_QUESTION_URL, bytes.NewBuffer(jsonValue))
+	req, err := http.NewRequest("POST", SECRET_QUESTION_URL, strings.NewReader(data.Encode()))
 	if err != nil {
 		log.Fatal(err)
 	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	res, err := client.Do(req)
 	if err != nil {
