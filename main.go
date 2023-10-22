@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -27,6 +28,25 @@ type ErpCreds struct {
 	ROL_NUMBER                 string
 	PASSWORD                   string
 	SECURITY_QUESTIONS_ANSWERS map[string]string
+}
+
+func input_creds(client http.Client) LoginDetails {
+	loginDetails := LoginDetails{
+		sessionToken: get_sessiontoken(client, true),
+		requestedUrl: HOMEPAGE_URL,
+	}
+
+	fmt.Print("Enter Roll No.: ")
+	fmt.Scan(&loginDetails.user_id)
+
+	fmt.Print("Enter ERP password: ")
+	fmt.Scan(&loginDetails.password)
+
+	fmt.Printf("Your secret question: %s\n", get_secret_question(client, loginDetails.user_id, true))
+	fmt.Print("Enter answer to your secret question: ")
+	fmt.Scan(&loginDetails.answer)
+
+	return loginDetails
 }
 
 func get_sessiontoken(client http.Client, logging bool) string {
@@ -102,7 +122,7 @@ func is_otp_required() bool {
 	return pinger.Statistics().PacketsRecv != 1
 }
 
-func request_otp(client http.Client, roll_number string, logging bool) {
+func request_otp(client http.Client, roll_number string, logging bool) string {
 	data := map[string][]string{
 		"typeee":  {"SI"},
 		"loginid": {roll_number},
@@ -118,6 +138,11 @@ func request_otp(client http.Client, roll_number string, logging bool) {
 	if logging {
 		log.Println("Requested OTP")
 	}
+
+	var otp string
+	fmt.Print("Enter OTP: ")
+	fmt.Scan(&otp)
+	return otp
 }
 
 func session_alive(client http.Client) bool {
@@ -130,7 +155,19 @@ func session_alive(client http.Client) bool {
 	return res.ContentLength == 1034
 }
 
-func login(client http.Client, loginDetails LoginDetails) {
+func Login() {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	client := http.Client{Jar: jar}
+
+	loginDetails := input_creds(client)
+
+	if is_otp_required() {
+		loginDetails.email_otp = request_otp(client, loginDetails.user_id, true)
+	}
+
 	data := map[string][]string{
 		"user_id":      {loginDetails.user_id},
 		"password":     {loginDetails.password},
@@ -139,6 +176,9 @@ func login(client http.Client, loginDetails LoginDetails) {
 		"requestedUrl": {loginDetails.requestedUrl},
 		"email_otp":    {loginDetails.email_otp},
 	}
+
+	
+
 	res, err := client.PostForm(LOGIN_URL, data)
 	if err != nil {
 		log.Fatal(err)
@@ -153,38 +193,24 @@ func login(client http.Client, loginDetails LoginDetails) {
 	bodys := string(body)
 	i := strings.Index(bodys, "ssoToken")
 	ssoToken := bodys[strings.LastIndex(bodys[:i], "\"")+1 : strings.Index(bodys, "ssoToken")+strings.Index(bodys[i:], "\"")]
-
 	fmt.Println("ERP login complete!")
-	err = exec.Command("xdg-open", HOMEPAGE_URL+"?"+ssoToken).Start()
+
+	open_browser(ssoToken)
+}
+
+func open_browser(ssoToken string) {
+	switch runtime.GOOS {
+	case "linux":
+		exec.Command("xdg-open", HOMEPAGE_URL+"?"+ssoToken).Start()
+	case "windows", "darwin":
+		exec.Command("open", HOMEPAGE_URL+"?"+ssoToken).Start()
+	default:
+		fmt.Errorf("unsupported platform")
+	}
 }
 
 func main() {
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	client := http.Client{Jar: jar}
 
-	loginDetails := LoginDetails{
-		sessionToken: get_sessiontoken(client, true),
-		requestedUrl: HOMEPAGE_URL,
-	}
-
-	fmt.Print("Enter Roll No.: ")
-	fmt.Scan(&loginDetails.user_id)
-
-	fmt.Print("Enter ERP password: ")
-	fmt.Scan(&loginDetails.password)
-
-	fmt.Printf("Your secret question: %s\n", get_secret_question(client, loginDetails.user_id, true))
-	fmt.Print("Enter answer to your secret question: ")
-	fmt.Scan(&loginDetails.answer)
-
-	if is_otp_required() {
-		request_otp(client, loginDetails.user_id, true)
-	}
-
-	login(client, loginDetails)
-
+	Login()
 	// fmt.Println(session_alive(client))
 }
