@@ -55,14 +55,8 @@ func get_secret_question(client http.Client, roll_number string, logging bool) s
 	data := url.Values{}
 	data.Set("user_id", roll_number)
 
-	req, err := http.NewRequest("POST", SECRET_QUESTION_URL, strings.NewReader(data.Encode()))
-	if err != nil {
-		log.Fatal(err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	res, err := client.Do(req)
-	if err != nil {
+	res, err := client.PostForm(SECRET_QUESTION_URL, data)
+	if err != nil{
 		log.Fatal(err)
 	}
 	defer res.Body.Close()
@@ -153,7 +147,7 @@ func main() {
 
 	client := http.Client{Jar: jar}
 	fmt.Println(get_sessiontoken(client, true))
-	// fmt.Println(get_secret_question(client, "20CS10020", true))
+	// fmt.Println(get_secret_question(client, "23CS30049", true))
 	// loginDetails := get_login_details("20CS10020", "password", "answer", "token")
 	// fmt.Println(is_otp_required())
 	// request_otp(client, loginDetails, true)
