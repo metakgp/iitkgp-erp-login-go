@@ -30,12 +30,7 @@ type ErpCreds struct {
 }
 
 func get_sessiontoken(client http.Client, logging bool) string {
-	req, err := http.NewRequest("GET", HOMEPAGE_URL, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	res, err := client.Do(req)
+	res, err := client.Get(HOMEPAGE_URL)
 	if err != nil {
 		log.Fatal(err)
 	}
