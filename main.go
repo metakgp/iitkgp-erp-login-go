@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/cookiejar"
-	"net/url"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -52,11 +52,12 @@ func get_sessiontoken(client http.Client, logging bool) string {
 }
 
 func get_secret_question(client http.Client, roll_number string, logging bool) string {
-	data := url.Values{}
-	data.Set("user_id", roll_number)
+	data := map[string][]string{
+		"user_id": {roll_number},
+	}
 
 	res, err := client.PostForm(SECRET_QUESTION_URL, data)
-	if err != nil{
+	if err != nil {
 		log.Fatal(err)
 	}
 	defer res.Body.Close()
@@ -101,19 +102,14 @@ func is_otp_required() bool {
 	return pinger.Statistics().PacketsRecv != 1
 }
 
-func request_otp(client http.Client, loginDetails LoginDetails, logging bool) {
-	data := url.Values{}
-	data.Set("typeee", "SI")
-	data.Set("loginid", loginDetails.user_id)
+func request_otp(client http.Client, roll_number string, logging bool) {
+	data := map[string][]string{
+		"typeee":  {"SI"},
+		"loginid": {roll_number},
+	}
 	// data.Set("pass", loginDetails.password) this field seems to be unnecessary according to testing
 
-	req, err := http.NewRequest("POST", OTP_URL, strings.NewReader(data.Encode()))
-	if err != nil {
-		log.Fatal(err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	res, err := client.Do(req)
+	res, err := client.PostForm(OTP_URL, data)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -125,12 +121,7 @@ func request_otp(client http.Client, loginDetails LoginDetails, logging bool) {
 }
 
 func session_alive(client http.Client) bool {
-	req, err := http.NewRequest("GET", WELCOMEPAGE_URL, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	res, err := client.Do(req)
+	res, err := client.Get(WELCOMEPAGE_URL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -139,17 +130,61 @@ func session_alive(client http.Client) bool {
 	return res.ContentLength == 1034
 }
 
+func login(client http.Client, loginDetails LoginDetails) {
+	data := map[string][]string{
+		"user_id":      {loginDetails.user_id},
+		"password":     {loginDetails.password},
+		"answer":       {loginDetails.answer},
+		"sessionToken": {loginDetails.sessionToken},
+		"requestedUrl": {loginDetails.requestedUrl},
+		"email_otp":    {loginDetails.email_otp},
+	}
+	res, err := client.PostForm(LOGIN_URL, data)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	bodys := string(body)
+	i := strings.Index(bodys, "ssoToken")
+	ssoToken := bodys[strings.LastIndex(bodys[:i], "\"")+1 : strings.Index(bodys, "ssoToken")+strings.Index(bodys[i:], "\"")]
+
+	fmt.Println("ERP login complete!")
+	err = exec.Command("xdg-open", HOMEPAGE_URL+"?"+ssoToken).Start()
+}
+
 func main() {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	client := http.Client{Jar: jar}
-	fmt.Println(get_sessiontoken(client, true))
-	// fmt.Println(get_secret_question(client, "23CS30049", true))
-	// loginDetails := get_login_details("20CS10020", "password", "answer", "token")
-	// fmt.Println(is_otp_required())
-	// request_otp(client, loginDetails, true)
+
+	loginDetails := LoginDetails{
+		sessionToken: get_sessiontoken(client, true),
+		requestedUrl: HOMEPAGE_URL,
+	}
+
+	fmt.Print("Enter Roll No.: ")
+	fmt.Scan(&loginDetails.user_id)
+
+	fmt.Print("Enter ERP password: ")
+	fmt.Scan(&loginDetails.password)
+
+	fmt.Printf("Your secret question: %s\n", get_secret_question(client, loginDetails.user_id, true))
+	fmt.Print("Enter answer to your secret question: ")
+	fmt.Scan(&loginDetails.answer)
+
+	if is_otp_required() {
+		request_otp(client, loginDetails.user_id, true)
+	}
+
+	login(client, loginDetails)
+
 	// fmt.Println(session_alive(client))
 }
