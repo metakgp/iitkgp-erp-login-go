@@ -6,8 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/cookiejar"
-	"os/exec"
-	"runtime"
+	"os"
 	"strings"
 	"time"
 
@@ -30,15 +29,26 @@ type ErpCreds struct {
 	SECURITY_QUESTIONS_ANSWERS map[string]string
 }
 
-func check_error(err error) {
-	if err != nil {
-		log.Fatal(err)
+
+func get_sessiontoken(client http.Client, logging bool) string {
+	res, err := client.Get(HOMEPAGE_URL)
+	check_error(err)
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	check_error(err)
+
+	doc := soup.HTMLParse(string(body))
+	sessionToken := doc.Find("input", "id", "sessionToken").Attrs()["value"]
+	if logging {
+		log.Println("Generated sessionToken")
 	}
+
+	return sessionToken
 }
 
 func input_creds(client http.Client) LoginDetails {
 	loginDetails := LoginDetails{
-		sessionToken: get_sessiontoken(client, true),
 		requestedUrl: HOMEPAGE_URL,
 	}
 
@@ -53,24 +63,6 @@ func input_creds(client http.Client) LoginDetails {
 	fmt.Scan(&loginDetails.answer)
 
 	return loginDetails
-}
-
-func get_sessiontoken(client http.Client, logging bool) string {
-	res, err := client.Get(HOMEPAGE_URL)
-	check_error(err)
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	check_error(err)
-
-	doc := soup.HTMLParse(string(body))
-	sessionToken := doc.Find("input", "id", "sessionToken").Attrs()["value"]
-
-	if logging {
-		log.Println("Generated sessionToken")
-	}
-
-	return sessionToken
 }
 
 func get_secret_question(client http.Client, roll_number string, logging bool) string {
@@ -90,18 +82,6 @@ func get_secret_question(client http.Client, roll_number string, logging bool) s
 	}
 
 	return string(body)
-}
-
-func get_login_details(roll_number string, password string, secret_answer string, sessionToken string) LoginDetails {
-	loginDetails := LoginDetails{
-		user_id:      roll_number,
-		password:     password,
-		answer:       secret_answer,
-		sessionToken: sessionToken,
-		requestedUrl: HOMEPAGE_URL,
-	}
-
-	return loginDetails
 }
 
 func is_otp_required() bool {
@@ -137,20 +117,51 @@ func request_otp(client http.Client, roll_number string, logging bool) string {
 	return otp
 }
 
-func is_session_alive(client http.Client) bool {
-	res, err := client.Get(WELCOMEPAGE_URL)
+func is_session_alive(client http.Client, logging bool) (bool, string) {
+	if logging {
+		log.Println("Checking token validity...")
+	}
+
+	var ssoToken string
+	token_byte, err := os.ReadFile(".token")
+	check_error(err)
+	ssoToken = string(token_byte)
+
+	res, err := client.Get(HOMEPAGE_URL + "?" + ssoToken)
 	check_error(err)
 	defer res.Body.Close()
 
-	return res.ContentLength == 1034
+	return res.ContentLength != 4145, ssoToken
 }
 
-func Login() {
+func Login(logging bool) {
 	jar, err := cookiejar.New(nil)
 	check_error(err)
 	client := http.Client{Jar: jar}
 
+	if is_token_file() {
+		if logging {
+			log.Println("Found token file!")
+		}
+
+		is_session_alive, ssoToken := is_session_alive(client, true)
+
+		if is_session_alive {
+			if logging {
+				log.Println("Token valid!")
+			}
+			open_browser(HOMEPAGE_URL+"?"+ssoToken)
+			return
+		} else {
+			if logging {
+				log.Println("Token invalid!")
+			}
+		}
+
+	}
+
 	loginDetails := input_creds(client)
+	loginDetails.sessionToken = get_sessiontoken(client, true)
 
 	if is_otp_required() {
 		loginDetails.email_otp = request_otp(client, loginDetails.user_id, true)
@@ -169,7 +180,7 @@ func Login() {
 	check_error(err)
 	defer res.Body.Close()
 
-	fmt.Println("ERP login complete!")
+	log.Println("ERP login complete!")
 
 	body, err := io.ReadAll(res.Body)
 	check_error(err)
@@ -178,22 +189,12 @@ func Login() {
 	i := strings.Index(bodys, "ssoToken")
 	ssoToken := bodys[strings.LastIndex(bodys[:i], "\"")+1 : strings.Index(bodys, "ssoToken")+strings.Index(bodys[i:], "\"")]
 
-	open_browser(ssoToken)
-}
+	err = os.WriteFile(".token", []byte(ssoToken), 0666)
+	check_error(err)
 
-func open_browser(ssoToken string) {
-	switch runtime.GOOS {
-	case "linux":
-		exec.Command("xdg-open", HOMEPAGE_URL+"?"+ssoToken).Start()
-	case "windows", "darwin":
-		exec.Command("open", HOMEPAGE_URL+"?"+ssoToken).Start()
-	default:
-		fmt.Errorf("unsupported platform")
-	}
+	open_browser(HOMEPAGE_URL+"?"+ssoToken)
 }
 
 func main() {
-
-	Login()
-	// fmt.Println(is_session_alive(client))
+	Login(true)
 }
