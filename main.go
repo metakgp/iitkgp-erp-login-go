@@ -8,10 +8,12 @@ import (
 	"net/http/cookiejar"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/anaskhan96/soup"
 	"github.com/go-ping/ping"
+	"golang.org/x/term"
 )
 
 type LoginDetails struct {
@@ -28,7 +30,6 @@ type ErpCreds struct {
 	PASSWORD                   string
 	SECURITY_QUESTIONS_ANSWERS map[string]string
 }
-
 
 func get_sessiontoken(client http.Client, logging bool) string {
 	res, err := client.Get(HOMEPAGE_URL)
@@ -55,13 +56,19 @@ func input_creds(client http.Client) LoginDetails {
 	fmt.Print("Enter Roll No.: ")
 	fmt.Scan(&loginDetails.user_id)
 
-	fmt.Print("Enter ERP password: ")
-	fmt.Scan(&loginDetails.password)
+	fmt.Print("Enter ERP Password: ")
+	byte_password, err := term.ReadPassword(int(syscall.Stdin))
+	check_error(err)
+	loginDetails.password = string(byte_password)
+	fmt.Println()
 
 	fmt.Printf("Your secret question: %s\n", get_secret_question(client, loginDetails.user_id, true))
 	fmt.Print("Enter answer to your secret question: ")
-	fmt.Scan(&loginDetails.answer)
-
+	byte_answer, err := term.ReadPassword(int(syscall.Stdin))
+	check_error(err)
+	loginDetails.answer = string(byte_answer)
+	fmt.Println()
+	
 	return loginDetails
 }
 
@@ -150,7 +157,7 @@ func Login(logging bool) {
 			if logging {
 				log.Println("Token valid!")
 			}
-			open_browser(HOMEPAGE_URL+"?"+ssoToken)
+			open_browser(HOMEPAGE_URL + "?" + ssoToken)
 			return
 		} else {
 			if logging {
@@ -192,7 +199,7 @@ func Login(logging bool) {
 	err = os.WriteFile(".token", []byte(ssoToken), 0666)
 	check_error(err)
 
-	open_browser(HOMEPAGE_URL+"?"+ssoToken)
+	open_browser(HOMEPAGE_URL + "?" + ssoToken)
 }
 
 func main() {
