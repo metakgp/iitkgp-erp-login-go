@@ -30,6 +30,12 @@ type ErpCreds struct {
 	SECURITY_QUESTIONS_ANSWERS map[string]string
 }
 
+func check_error(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func input_creds(client http.Client) LoginDetails {
 	loginDetails := LoginDetails{
 		sessionToken: get_sessiontoken(client, true),
@@ -51,15 +57,11 @@ func input_creds(client http.Client) LoginDetails {
 
 func get_sessiontoken(client http.Client, logging bool) string {
 	res, err := client.Get(HOMEPAGE_URL)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check_error(err)
 	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check_error(err)
 
 	doc := soup.HTMLParse(string(body))
 	sessionToken := doc.Find("input", "id", "sessionToken").Attrs()["value"]
@@ -77,15 +79,11 @@ func get_secret_question(client http.Client, roll_number string, logging bool) s
 	}
 
 	res, err := client.PostForm(SECRET_QUESTION_URL, data)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check_error(err)
 	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check_error(err)
 
 	if logging {
 		log.Println("Fetched Security Question")
@@ -108,16 +106,12 @@ func get_login_details(roll_number string, password string, secret_answer string
 
 func is_otp_required() bool {
 	pinger, err := ping.NewPinger(PING_URL)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check_error(err)
 	pinger.Count = 1
 	pinger.Timeout = time.Duration(4 * float64(time.Second))
 
 	err = pinger.Run()
-	if err != nil {
-		log.Fatal(err)
-	}
+	check_error(err)
 
 	return pinger.Statistics().PacketsRecv != 1
 }
@@ -130,9 +124,7 @@ func request_otp(client http.Client, roll_number string, logging bool) string {
 	// data.Set("pass", loginDetails.password) this field seems to be unnecessary according to testing
 
 	res, err := client.PostForm(OTP_URL, data)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check_error(err)
 	defer res.Body.Close()
 
 	if logging {
@@ -145,11 +137,9 @@ func request_otp(client http.Client, roll_number string, logging bool) string {
 	return otp
 }
 
-func session_alive(client http.Client) bool {
+func is_session_alive(client http.Client) bool {
 	res, err := client.Get(WELCOMEPAGE_URL)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check_error(err)
 	defer res.Body.Close()
 
 	return res.ContentLength == 1034
@@ -157,9 +147,7 @@ func session_alive(client http.Client) bool {
 
 func Login() {
 	jar, err := cookiejar.New(nil)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check_error(err)
 	client := http.Client{Jar: jar}
 
 	loginDetails := input_creds(client)
@@ -177,23 +165,18 @@ func Login() {
 		"email_otp":    {loginDetails.email_otp},
 	}
 
-	
-
 	res, err := client.PostForm(LOGIN_URL, data)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check_error(err)
 	defer res.Body.Close()
 
+	fmt.Println("ERP login complete!")
+
 	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check_error(err)
 
 	bodys := string(body)
 	i := strings.Index(bodys, "ssoToken")
 	ssoToken := bodys[strings.LastIndex(bodys[:i], "\"")+1 : strings.Index(bodys, "ssoToken")+strings.Index(bodys[i:], "\"")]
-	fmt.Println("ERP login complete!")
 
 	open_browser(ssoToken)
 }
@@ -212,5 +195,5 @@ func open_browser(ssoToken string) {
 func main() {
 
 	Login()
-	// fmt.Println(session_alive(client))
+	// fmt.Println(is_session_alive(client))
 }
