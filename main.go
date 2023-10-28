@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/anaskhan96/soup"
 	"github.com/go-ping/ping"
+	"github.com/pkg/browser"
 	"golang.org/x/term"
 )
 
@@ -26,9 +28,9 @@ type LoginDetails struct {
 }
 
 type ErpCreds struct {
-	ROL_NUMBER                 string
-	PASSWORD                   string
-	SECURITY_QUESTIONS_ANSWERS map[string]string
+	RollNumber               string            `json:"roll_number"`
+	Password                 string            `json:"password"`
+	SecurityQuestionsAnswers map[string]string `json:"answers"`
 }
 
 func get_sessiontoken(client http.Client, logging bool) string {
@@ -44,7 +46,6 @@ func get_sessiontoken(client http.Client, logging bool) string {
 	if logging {
 		log.Println("Generated sessionToken")
 	}
-
 	return sessionToken
 }
 
@@ -52,23 +53,40 @@ func input_creds(client http.Client) LoginDetails {
 	loginDetails := LoginDetails{
 		requestedUrl: HOMEPAGE_URL,
 	}
+	loginDetails.sessionToken = get_sessiontoken(client, true)
 
-	fmt.Print("Enter Roll No.: ")
-	fmt.Scan(&loginDetails.user_id)
+	if is_file("erpcreds.json") {
+		log.Println("Found ERP Credentials file")
 
-	fmt.Print("Enter ERP Password: ")
-	byte_password, err := term.ReadPassword(int(syscall.Stdin))
-	check_error(err)
-	loginDetails.password = string(byte_password)
-	fmt.Println()
+		creds_byte, err := os.ReadFile("erpcreds.json")
+		check_error(err)
 
-	fmt.Printf("Your secret question: %s\n", get_secret_question(client, loginDetails.user_id, true))
-	fmt.Print("Enter answer to your secret question: ")
-	byte_answer, err := term.ReadPassword(int(syscall.Stdin))
-	check_error(err)
-	loginDetails.answer = string(byte_answer)
-	fmt.Println()
-	
+		var erp_creds ErpCreds
+
+		err = json.Unmarshal(creds_byte, &erp_creds)
+		check_error(err)
+
+		loginDetails.user_id = erp_creds.RollNumber
+		loginDetails.password = erp_creds.Password
+		loginDetails.answer = erp_creds.SecurityQuestionsAnswers[get_secret_question(client, erp_creds.RollNumber, true)]
+	} else {
+		fmt.Print("Enter Roll No.: ")
+		fmt.Scan(&loginDetails.user_id)
+
+		fmt.Print("Enter ERP Password: ")
+		byte_password, err := term.ReadPassword(int(syscall.Stdin))
+		check_error(err)
+		loginDetails.password = string(byte_password)
+		fmt.Println()
+
+		fmt.Printf("Your secret question: %s\n", get_secret_question(client, loginDetails.user_id, true))
+		fmt.Print("Enter answer to your secret question: ")
+		byte_answer, err := term.ReadPassword(int(syscall.Stdin))
+		check_error(err)
+
+		loginDetails.answer = string(byte_answer)
+		fmt.Println()
+	}
 	return loginDetails
 }
 
@@ -103,34 +121,13 @@ func is_otp_required() bool {
 	return pinger.Statistics().PacketsRecv != 1
 }
 
-func request_otp(client http.Client, roll_number string, logging bool) string {
-	data := map[string][]string{
-		"typeee":  {"SI"},
-		"loginid": {roll_number},
-	}
-	// data.Set("pass", loginDetails.password) this field seems to be unnecessary according to testing
-
-	res, err := client.PostForm(OTP_URL, data)
-	check_error(err)
-	defer res.Body.Close()
-
-	if logging {
-		log.Println("Requested OTP")
-	}
-
-	var otp string
-	fmt.Print("Enter OTP: ")
-	fmt.Scan(&otp)
-	return otp
-}
-
 func is_session_alive(client http.Client, logging bool) (bool, string) {
 	if logging {
-		log.Println("Checking token validity...")
+		log.Println("Checking session validity...")
 	}
 
 	var ssoToken string
-	token_byte, err := os.ReadFile(".token")
+	token_byte, err := os.ReadFile(".session")
 	check_error(err)
 	ssoToken = string(token_byte)
 
@@ -146,32 +143,33 @@ func Login(logging bool) {
 	check_error(err)
 	client := http.Client{Jar: jar}
 
-	if is_token_file() {
+	if is_file(".session") {
 		if logging {
-			log.Println("Found token file!")
+			log.Println("Found session file")
 		}
-
 		is_session_alive, ssoToken := is_session_alive(client, true)
 
 		if is_session_alive {
 			if logging {
-				log.Println("Token valid!")
+				log.Println("Session valid")
 			}
-			open_browser(HOMEPAGE_URL + "?" + ssoToken)
+			browser.OpenURL(HOMEPAGE_URL + "?" + ssoToken)
 			return
 		} else {
 			if logging {
-				log.Println("Token invalid!")
+				log.Println("Session invalid!")
 			}
 		}
-
 	}
 
 	loginDetails := input_creds(client)
-	loginDetails.sessionToken = get_sessiontoken(client, true)
 
 	if is_otp_required() {
-		loginDetails.email_otp = request_otp(client, loginDetails.user_id, true)
+		if logging {
+			log.Println("OTP is required")
+		}
+		loginDetails.email_otp = fetch_otp(&client,loginDetails.user_id, true)
+		// loginDetails.email_otp = get_otp(&client, loginDetails.user_id)
 	}
 
 	data := map[string][]string{
@@ -183,6 +181,19 @@ func Login(logging bool) {
 		"email_otp":    {loginDetails.email_otp},
 	}
 
+	// data_ := url.Values(data)
+	// data.Set("user_id", loginDetails.user_id)
+
+	// req, err := http.NewRequest(http.MethodPost, LOGIN_URL, strings.NewReader(data_.Encode()))
+	// check_error(err)
+
+	
+	// req.AddCookie(&http.Cookie{Name: "JSESSIONID", Value: loginDetails.sessionToken, Domain: "erp.iitkgp.ac.in",Path: "/IIT_ERP3"})
+	// req.AddCookie(&http.Cookie{Name: "JSESSIONID", Value: loginDetails.sessionToken, Domain: "erp.iitkgp.ac.in",Path: "/IIT_ERP3"})
+	// req.AddCookie(&http.Cookie{Name: "JSESSIONID", Value: loginDetails.sessionToken, Domain: "erp.iitkgp.ac.in",Path: "/IIT_ERP3"})
+	// req.AddCookie(&http.Cookie{Name: "JSID#/IIT_ERP3", Value: loginDetails.sessionToken, Domain: "erp.iitkgp.ac.in"})
+
+	// res, err := client.Do(req)
 	res, err := client.PostForm(LOGIN_URL, data)
 	check_error(err)
 	defer res.Body.Close()
@@ -196,10 +207,10 @@ func Login(logging bool) {
 	i := strings.Index(bodys, "ssoToken")
 	ssoToken := bodys[strings.LastIndex(bodys[:i], "\"")+1 : strings.Index(bodys, "ssoToken")+strings.Index(bodys[i:], "\"")]
 
-	err = os.WriteFile(".token", []byte(ssoToken), 0666)
+	err = os.WriteFile(".session", []byte(ssoToken), 0666)
 	check_error(err)
 
-	open_browser(HOMEPAGE_URL + "?" + ssoToken)
+	browser.OpenURL(HOMEPAGE_URL + "?" + ssoToken)
 }
 
 func main() {

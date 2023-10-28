@@ -1,3 +1,5 @@
 iitkgp-erp-login
 vendor
 .token
+*.json
+.session
