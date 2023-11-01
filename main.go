@@ -182,7 +182,7 @@ func Login(logging bool) {
 	check_error(err)
 	defer res.Body.Close()
 
-	sessionToken := res.Header["Set-Cookie"][0]
+	// sessionToken := res.Header["Set-Cookie"][0]
 
 	log.Println("ERP login complete!")
 
@@ -198,7 +198,7 @@ func Login(logging bool) {
 
 	browser.OpenURL(HOMEPAGE_URL + "?" + ssoToken)
 
-	getTimetable(&client, ssoToken, sessionToken, "CS")
+	// getTimetable(&client, ssoToken, sessionToken, "CS")
 
 }
 
