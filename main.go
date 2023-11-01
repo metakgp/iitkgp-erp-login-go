@@ -7,22 +7,23 @@ import (
 	"log"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/anaskhan96/soup"
+	// "github.com/anaskhan96/soup"
 	"github.com/go-ping/ping"
 	"github.com/pkg/browser"
 	"golang.org/x/term"
 )
 
 type LoginDetails struct {
-	user_id      string
-	password     string
-	answer       string
-	sessionToken string
+	user_id  string
+	password string
+	answer   string
+	// sessionToken string
 	requestedUrl string
 	email_otp    string
 }
@@ -33,27 +34,26 @@ type ErpCreds struct {
 	SecurityQuestionsAnswers map[string]string `json:"answers"`
 }
 
-func get_sessiontoken(client http.Client, logging bool) string {
-	res, err := client.Get(HOMEPAGE_URL)
-	check_error(err)
-	defer res.Body.Close()
+// func get_sessiontoken(client http.Client, logging bool) string {
+// 	res, err := client.Get(HOMEPAGE_URL)
+// 	check_error(err)
+// 	defer res.Body.Close()
 
-	body, err := io.ReadAll(res.Body)
-	check_error(err)
+// 	body, err := io.ReadAll(res.Body)
+// 	check_error(err)
 
-	doc := soup.HTMLParse(string(body))
-	sessionToken := doc.Find("input", "id", "sessionToken").Attrs()["value"]
-	if logging {
-		log.Println("Generated sessionToken")
-	}
-	return sessionToken
-}
+// 	doc := soup.HTMLParse(string(body))
+// 	sessionToken := doc.Find("input", "id", "sessionToken").Attrs()["value"]
+// 	if logging {
+// 		log.Println("Generated sessionToken")
+// 	}
+// 	return sessionToken
+// }
 
-func input_creds(client http.Client) LoginDetails {
+func input_creds(client http.Client, logging bool) LoginDetails {
 	loginDetails := LoginDetails{
 		requestedUrl: HOMEPAGE_URL,
 	}
-	loginDetails.sessionToken = get_sessiontoken(client, true)
 
 	if is_file("erpcreds.json") {
 		log.Println("Found ERP Credentials file")
@@ -68,7 +68,7 @@ func input_creds(client http.Client) LoginDetails {
 
 		loginDetails.user_id = erp_creds.RollNumber
 		loginDetails.password = erp_creds.Password
-		loginDetails.answer = erp_creds.SecurityQuestionsAnswers[get_secret_question(client, erp_creds.RollNumber, true)]
+		loginDetails.answer = erp_creds.SecurityQuestionsAnswers[get_secret_question(client, erp_creds.RollNumber, logging)]
 	} else {
 		fmt.Print("Enter Roll No.: ")
 		fmt.Scan(&loginDetails.user_id)
@@ -79,7 +79,7 @@ func input_creds(client http.Client) LoginDetails {
 		loginDetails.password = string(byte_password)
 		fmt.Println()
 
-		fmt.Printf("Your secret question: %s\n", get_secret_question(client, loginDetails.user_id, true))
+		fmt.Printf("Your secret question: %s\n", get_secret_question(client, loginDetails.user_id, logging))
 		fmt.Print("Enter answer to your secret question: ")
 		byte_answer, err := term.ReadPassword(int(syscall.Stdin))
 		check_error(err)
@@ -127,9 +127,9 @@ func is_session_alive(client http.Client, logging bool) (bool, string) {
 	}
 
 	var ssoToken string
-	token_byte, err := os.ReadFile(".session")
+	session_byte, err := os.ReadFile(".session")
 	check_error(err)
-	ssoToken = string(token_byte)
+	ssoToken = string(session_byte)
 
 	res, err := client.Get(HOMEPAGE_URL + "?" + ssoToken)
 	check_error(err)
@@ -147,7 +147,7 @@ func Login(logging bool) {
 		if logging {
 			log.Println("Found session file")
 		}
-		is_session_alive, ssoToken := is_session_alive(client, true)
+		is_session_alive, ssoToken := is_session_alive(client, logging)
 
 		if is_session_alive {
 			if logging {
@@ -162,41 +162,27 @@ func Login(logging bool) {
 		}
 	}
 
-	loginDetails := input_creds(client)
+	loginDetails := input_creds(client, logging)
 
 	if is_otp_required() {
 		if logging {
 			log.Println("OTP is required")
 		}
-		loginDetails.email_otp = fetch_otp(&client,loginDetails.user_id, true)
-		// loginDetails.email_otp = get_otp(&client, loginDetails.user_id)
+		loginDetails.email_otp = fetch_otp(&client, loginDetails.user_id, logging)
 	}
 
-	data := map[string][]string{
-		"user_id":      {loginDetails.user_id},
-		"password":     {loginDetails.password},
-		"answer":       {loginDetails.answer},
-		"sessionToken": {loginDetails.sessionToken},
-		"requestedUrl": {loginDetails.requestedUrl},
-		"email_otp":    {loginDetails.email_otp},
-	}
+	data := url.Values{}
+	data.Set("user_id", loginDetails.user_id)
+	data.Set("password", loginDetails.password)
+	data.Set("answer", loginDetails.answer)
+	data.Set("requestedUrl", loginDetails.requestedUrl)
+	data.Set("email_otp", loginDetails.email_otp)
 
-	// data_ := url.Values(data)
-	// data.Set("user_id", loginDetails.user_id)
-
-	// req, err := http.NewRequest(http.MethodPost, LOGIN_URL, strings.NewReader(data_.Encode()))
-	// check_error(err)
-
-	
-	// req.AddCookie(&http.Cookie{Name: "JSESSIONID", Value: loginDetails.sessionToken, Domain: "erp.iitkgp.ac.in",Path: "/IIT_ERP3"})
-	// req.AddCookie(&http.Cookie{Name: "JSESSIONID", Value: loginDetails.sessionToken, Domain: "erp.iitkgp.ac.in",Path: "/IIT_ERP3"})
-	// req.AddCookie(&http.Cookie{Name: "JSESSIONID", Value: loginDetails.sessionToken, Domain: "erp.iitkgp.ac.in",Path: "/IIT_ERP3"})
-	// req.AddCookie(&http.Cookie{Name: "JSID#/IIT_ERP3", Value: loginDetails.sessionToken, Domain: "erp.iitkgp.ac.in"})
-
-	// res, err := client.Do(req)
 	res, err := client.PostForm(LOGIN_URL, data)
 	check_error(err)
 	defer res.Body.Close()
+
+	sessionToken := res.Header["Set-Cookie"][0]
 
 	log.Println("ERP login complete!")
 
@@ -211,6 +197,9 @@ func Login(logging bool) {
 	check_error(err)
 
 	browser.OpenURL(HOMEPAGE_URL + "?" + ssoToken)
+
+	getTimetable(&client, ssoToken, sessionToken, "CS")
+
 }
 
 func main() {

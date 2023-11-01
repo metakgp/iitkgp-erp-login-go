@@ -19,7 +19,7 @@ func check_error(err error) {
 }
 
 
-func output_body(res http.Response) string {
+func output_body(res *http.Response) string {
 	body, err := io.ReadAll(res.Body)
 	check_error(err)
 	return string(body)

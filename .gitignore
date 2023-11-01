@@ -3,3 +3,5 @@ vendor
 .token
 *.json
 .session
+temp
+read_timetable.go
