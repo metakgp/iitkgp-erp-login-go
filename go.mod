@@ -3,7 +3,6 @@ module github.com/metakgp/iitkgp-erp-login-go
 go 1.21.1
 
 require (
-	github.com/anaskhan96/soup v1.2.5
 	github.com/go-ping/ping v1.1.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	golang.org/x/oauth2 v0.13.0
@@ -14,18 +13,12 @@ require (
 require (
 	cloud.google.com/go/compute v1.23.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
-	github.com/knadh/koanf v1.5.0 // indirect
-	github.com/knadh/koanf/providers/file v0.1.0 // indirect
-	github.com/mitchellh/copystructure v1.2.0 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
-	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/net v0.17.0 // indirect

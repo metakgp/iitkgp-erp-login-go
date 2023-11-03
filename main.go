@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"strings"
@@ -50,7 +49,7 @@ type ErpCreds struct {
 // 	return sessionToken
 // }
 
-func input_creds(client http.Client, logging bool) LoginDetails {
+func input_creds(client *http.Client, logging bool) LoginDetails {
 	loginDetails := LoginDetails{
 		requestedUrl: HOMEPAGE_URL,
 	}
@@ -90,7 +89,7 @@ func input_creds(client http.Client, logging bool) LoginDetails {
 	return loginDetails
 }
 
-func get_secret_question(client http.Client, roll_number string, logging bool) string {
+func get_secret_question(client *http.Client, roll_number string, logging bool) string {
 	data := map[string][]string{
 		"user_id": {roll_number},
 	}
@@ -121,7 +120,7 @@ func is_otp_required() bool {
 	return pinger.Statistics().PacketsRecv != 1
 }
 
-func is_session_alive(client http.Client, logging bool) (bool, string) {
+func is_session_alive(client *http.Client, logging bool) (bool, string) {
 	if logging {
 		log.Println("Checking session validity...")
 	}
@@ -138,10 +137,7 @@ func is_session_alive(client http.Client, logging bool) (bool, string) {
 	return res.ContentLength != 4145, ssoToken
 }
 
-func Login(logging bool) {
-	jar, err := cookiejar.New(nil)
-	check_error(err)
-	client := http.Client{Jar: jar}
+func login(client *http.Client, logging bool) string {
 
 	if is_file(".session") {
 		if logging {
@@ -153,8 +149,8 @@ func Login(logging bool) {
 			if logging {
 				log.Println("Session valid")
 			}
-			browser.OpenURL(HOMEPAGE_URL + "?" + ssoToken)
-			return
+			// browser.OpenURL(HOMEPAGE_URL + "?" + ssoToken)
+			return ssoToken
 		} else {
 			if logging {
 				log.Println("Session invalid!")
@@ -168,7 +164,7 @@ func Login(logging bool) {
 		if logging {
 			log.Println("OTP is required")
 		}
-		loginDetails.email_otp = fetch_otp(&client, loginDetails.user_id, logging)
+		loginDetails.email_otp = fetch_otp(client, loginDetails.user_id, logging)
 	}
 
 	data := url.Values{}
@@ -200,8 +196,10 @@ func Login(logging bool) {
 
 	// getTimetable(&client, ssoToken, sessionToken, "CS")
 
+	return ssoToken
 }
 
 func main() {
-	Login(true)
+	// Login(true)
+	GetTimetable("CS")
 }
