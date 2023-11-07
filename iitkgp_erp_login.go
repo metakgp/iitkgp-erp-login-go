@@ -33,22 +33,6 @@ type ErpCreds struct {
 	SecurityQuestionsAnswers map[string]string `json:"answers"`
 }
 
-// func get_sessiontoken(client http.Client, logging bool) string {
-// 	res, err := client.Get(HOMEPAGE_URL)
-// 	check_error(err)
-// 	defer res.Body.Close()
-
-// 	body, err := io.ReadAll(res.Body)
-// 	check_error(err)
-
-// 	doc := soup.HTMLParse(string(body))
-// 	sessionToken := doc.Find("input", "id", "sessionToken").Attrs()["value"]
-// 	if logging {
-// 		log.Println("Generated sessionToken")
-// 	}
-// 	return sessionToken
-// }
-
 func input_creds(client *http.Client, logging bool) LoginDetails {
 	loginDetails := LoginDetails{
 		requestedUrl: HOMEPAGE_URL,
@@ -137,7 +121,7 @@ func is_session_alive(client *http.Client, logging bool) (bool, string) {
 	return res.ContentLength != 4145, ssoToken
 }
 
-func Login(logging bool) *http.Client{
+func Login(logging bool) *http.Client {
 	jar, err := cookiejar.New(nil)
 	check_error(err)
 	client := http.Client{Jar: jar}
