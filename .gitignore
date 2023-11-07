@@ -1,4 +1,4 @@
-iitkgp-erp-login
+iitkgp-erp-login-go
 vendor
 .token
 *.json

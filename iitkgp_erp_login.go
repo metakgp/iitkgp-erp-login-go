@@ -1,4 +1,4 @@
-package main
+package iitkgp_erp_login
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"strings"
@@ -14,7 +15,6 @@ import (
 
 	// "github.com/anaskhan96/soup"
 	"github.com/go-ping/ping"
-	"github.com/pkg/browser"
 	"golang.org/x/term"
 )
 
@@ -137,20 +137,24 @@ func is_session_alive(client *http.Client, logging bool) (bool, string) {
 	return res.ContentLength != 4145, ssoToken
 }
 
-func login(client *http.Client, logging bool) string {
+func Login(logging bool) *http.Client{
+	jar, err := cookiejar.New(nil)
+	check_error(err)
+	client := http.Client{Jar: jar}
 
 	if is_file(".session") {
 		if logging {
 			log.Println("Found session file")
 		}
-		is_session_alive, ssoToken := is_session_alive(client, logging)
+		is_session_alive, ssoToken := is_session_alive(&client, logging)
+		fmt.Println(ssoToken)
 
 		if is_session_alive {
 			if logging {
 				log.Println("Session valid")
 			}
 			// browser.OpenURL(HOMEPAGE_URL + "?" + ssoToken)
-			return ssoToken
+			return &client
 		} else {
 			if logging {
 				log.Println("Session invalid!")
@@ -158,13 +162,13 @@ func login(client *http.Client, logging bool) string {
 		}
 	}
 
-	loginDetails := input_creds(client, logging)
+	loginDetails := input_creds(&client, logging)
 
 	if is_otp_required() {
 		if logging {
 			log.Println("OTP is required")
 		}
-		loginDetails.email_otp = fetch_otp(client, loginDetails.user_id, logging)
+		loginDetails.email_otp = fetch_otp(&client, loginDetails.user_id, logging)
 	}
 
 	data := url.Values{}
@@ -192,14 +196,8 @@ func login(client *http.Client, logging bool) string {
 	err = os.WriteFile(".session", []byte(ssoToken), 0666)
 	check_error(err)
 
-	browser.OpenURL(HOMEPAGE_URL + "?" + ssoToken)
+	// browser.OpenURL(HOMEPAGE_URL + "?" + ssoToken)
 
-	// getTimetable(&client, ssoToken, sessionToken, "CS")
+	return &client
 
-	return ssoToken
-}
-
-func main() {
-	// Login(true)
-	GetTimetable("CS")
 }

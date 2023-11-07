@@ -1,4 +1,4 @@
-package main
+package iitkgp_erp_login
 
 const (
 	PING_URL            = "iitkgp.ac.in"
