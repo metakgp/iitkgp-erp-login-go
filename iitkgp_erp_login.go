@@ -18,6 +18,8 @@ import (
 	"golang.org/x/term"
 )
 
+const Logging = true
+
 type LoginDetails struct {
 	user_id  string
 	password string
@@ -105,83 +107,95 @@ func is_otp_required() bool {
 }
 
 func is_session_alive(client *http.Client, logging bool) (bool, string) {
+
+	if !is_file(".session") {
+		return false, ""
+	}
+
 	if logging {
+		log.Println("Found session file")
 		log.Println("Checking session validity...")
 	}
 
-	var ssoToken string
 	session_byte, err := os.ReadFile(".session")
 	check_error(err)
-	ssoToken = string(session_byte)
+	ssoToken := string(session_byte)
 
 	res, err := client.Get(HOMEPAGE_URL + "?" + ssoToken)
 	check_error(err)
 	defer res.Body.Close()
 
+	if logging {
+		if res.ContentLength != 4145 {
+
+			log.Println("Session valid")
+
+		} else {
+			log.Println("Session invalid")
+		}
+	}
+
 	return res.ContentLength != 4145, ssoToken
 }
 
-func Login(logging bool) *http.Client {
+func ERPSession(logging bool) (*http.Client, string) {
 	jar, err := cookiejar.New(nil)
 	check_error(err)
 	client := http.Client{Jar: jar}
 
-	if is_file(".session") {
-		if logging {
-			log.Println("Found session file")
-		}
-		is_session_alive, ssoToken := is_session_alive(&client, logging)
-		fmt.Println(ssoToken)
+	var ssoToken string
+	var isSession bool
+	isSession, ssoToken = is_session_alive(&client, logging)
 
-		if is_session_alive {
+	if !isSession {
+		loginDetails := input_creds(&client, logging)
+
+		if is_otp_required() {
 			if logging {
-				log.Println("Session valid")
+				log.Println("OTP is required")
 			}
-			// browser.OpenURL(HOMEPAGE_URL + "?" + ssoToken)
-			return &client
-		} else {
-			if logging {
-				log.Println("Session invalid!")
-			}
+			loginDetails.email_otp = fetch_otp(&client, loginDetails.user_id, logging)
 		}
-	}
 
-	loginDetails := input_creds(&client, logging)
+		data := url.Values{}
+		data.Set("user_id", loginDetails.user_id)
+		data.Set("password", loginDetails.password)
+		data.Set("answer", loginDetails.answer)
+		data.Set("requestedUrl", loginDetails.requestedUrl)
+		data.Set("email_otp", loginDetails.email_otp)
 
-	if is_otp_required() {
-		if logging {
-			log.Println("OTP is required")
-		}
-		loginDetails.email_otp = fetch_otp(&client, loginDetails.user_id, logging)
-	}
+		res, err := client.PostForm(LOGIN_URL, data)
+		check_error(err)
+		defer res.Body.Close()
 
-	data := url.Values{}
-	data.Set("user_id", loginDetails.user_id)
-	data.Set("password", loginDetails.password)
-	data.Set("answer", loginDetails.answer)
-	data.Set("requestedUrl", loginDetails.requestedUrl)
-	data.Set("email_otp", loginDetails.email_otp)
+		// sessionToken := res.Header["Set-Cookie"][0]
 
-	res, err := client.PostForm(LOGIN_URL, data)
-	check_error(err)
-	defer res.Body.Close()
+		log.Println("ERP login complete!")
 
-	// sessionToken := res.Header["Set-Cookie"][0]
+		body, err := io.ReadAll(res.Body)
+		check_error(err)
 
-	log.Println("ERP login complete!")
+		bodys := string(body)
+		i := strings.Index(bodys, "ssoToken")
+		ssoToken := bodys[strings.LastIndex(bodys[:i], "\"")+1 : strings.Index(bodys, "ssoToken")+strings.Index(bodys[i:], "\"")]
 
-	body, err := io.ReadAll(res.Body)
-	check_error(err)
+		u, err := url.Parse("https://erp.iitkgp.ac.in/")
+		check_error(err)
 
-	bodys := string(body)
-	i := strings.Index(bodys, "ssoToken")
-	ssoToken := bodys[strings.LastIndex(bodys[:i], "\"")+1 : strings.Index(bodys, "ssoToken")+strings.Index(bodys[i:], "\"")]
+		client.Jar.SetCookies(u, []*http.Cookie{{Name: "ssoToken", Value: ssoToken[9:]}})
 
-	err = os.WriteFile(".session", []byte(ssoToken), 0666)
-	check_error(err)
+		err = os.WriteFile(".session", []byte(ssoToken), 0666)
+		check_error(err)
 
+	} 
+	
 	// browser.OpenURL(HOMEPAGE_URL + "?" + ssoToken)
 
-	return &client
+	u, err := url.Parse("https://erp.iitkgp.ac.in/")
+	check_error(err)
+
+	client.Jar.SetCookies(u, []*http.Cookie{{Name: "ssoToken", Value: ssoToken[9:]}})
+
+	return &client, ssoToken
 
 }
