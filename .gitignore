@@ -1,7 +1,8 @@
-iitkgp-erp-login
+iitkgp-erp-login-go
 vendor
 .token
 *.json
 .session
 temp
 read_timetable.go
+cmd/main.go
