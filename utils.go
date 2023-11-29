@@ -2,6 +2,7 @@ package iitkgp_erp_login
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -26,14 +27,9 @@ func output_body(res *http.Response) string {
 }
 
 func is_file(filename string) bool {
-	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_CREATE, 0666)
-	check_error(err)
+	file, err := os.Open(filename)
 	defer file.Close()
-
-	file_info, err := file.Stat()
-	check_error(err)
-
-	return file_info.Size() != 0
+	return !errors.Is(err, os.ErrNotExist)
 }
 
 func generate_token(ctx *context.Context, cancel context.CancelFunc, conf *oauth2.Config) (*oauth2.Token, error) {

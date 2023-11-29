@@ -1,6 +1,7 @@
 package iitkgp_erp_login
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -42,9 +43,19 @@ func input_creds(client *http.Client, logging bool) LoginDetails {
 	if is_file("erpcreds.json") {
 		log.Println("Found ERP Credentials file")
 
-		creds_byte, err := os.ReadFile("erpcreds.json")
+		creds_file, err := os.Open("erpcreds.json")
 		check_error(err)
+		defer creds_file.Close()
 
+		scanner := bufio.NewScanner(creds_file)
+		scanner.Split(bufio.ScanLines)
+
+		var creds_byte []byte
+
+		for scanner.Scan() {
+			creds_byte = append(creds_byte, scanner.Bytes()...)
+		}
+		
 		var erp_creds ErpCreds
 
 		err = json.Unmarshal(creds_byte, &erp_creds)
