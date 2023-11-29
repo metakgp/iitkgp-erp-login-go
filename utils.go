@@ -33,7 +33,7 @@ func is_file(filename string) bool {
 }
 
 func generate_token(ctx *context.Context, cancel context.CancelFunc, conf *oauth2.Config) (*oauth2.Token, error) {
-	authURL := conf.AuthCodeURL("psuedo-random")
+	authURL := conf.AuthCodeURL("aadsjf30958") // should be a randomly generated string
 	fmt.Println("Visit this URL for authentication: ", authURL)
 	browser.OpenURL(authURL)
 
@@ -41,7 +41,7 @@ func generate_token(ctx *context.Context, cancel context.CancelFunc, conf *oauth
 	var err error
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("state") == "psuedo-random" {
+		if r.URL.Query().Get("state") == "aadsjf30958" {
 			token, err = conf.Exchange(*ctx, r.URL.Query().Get("code"))
 		}
 		fmt.Fprintf(w, "Authentication complete. Check your terminal.")
