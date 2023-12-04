@@ -132,6 +132,7 @@ func fetch_otp_from_mail(client *http.Client, roll_number string, logging bool) 
 func fetch_otp_from_input(client *http.Client, roll_number string) string {
 	request_otp(*client, roll_number, true)
 	var otp string
+	fmt.Print("Enter OTP: ")
 	fmt.Scan(&otp)
 	return otp
 }
