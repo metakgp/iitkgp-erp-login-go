@@ -122,10 +122,11 @@ func main() {
 }
 ```
 
-### Projects using ERP login pacakge Go
+### Projects using ERP Login Package Go
 - [Chillzone](https://github.com/metakgp/chillzone)
 
 ## Maintainer(s)
+- [Shikhar Soni](https://github.com/shikharish)
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
