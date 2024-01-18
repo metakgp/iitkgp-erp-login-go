@@ -1,7 +1,5 @@
 # <div id="top"></div>
 
-<!-- PROJECT SHIELDS -->
-<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links-->
 <div align="center">
 
 [![Contributors][contributors-shield]][contributors-url]
@@ -12,14 +10,6 @@
 [![Wiki][wiki-shield]][wiki-url]
 
 </div>
-
-<!-- PROJECT LOGO -->
-<!-- <br /> -->
-<!-- UPDATE -->
-<!-- <div align="center">
-  <a href="https://github.com/metakgp/iitkgp-erp-login-go">
-    <img width="140" alt="image" src="https://user-images.githubusercontent.com/86282911/206632284-cb260f57-c612-4ab5-b92b-2172c341ab23.png">
-  </a> -->
 
   <h1 align="center">ERP Login Module</h1>
 
@@ -50,14 +40,7 @@
 </details>
 
 
-<!-- ABOUT THE PROJECT -->
 ## About The Project
-<!-- UPDATE -->
-<!-- <div align="center">
-  <a href="https://github.com/metakgp/PROJECT_NAME">
-    <img width="80%" alt="image" src="https://user-images.githubusercontent.com/86282911/206632547-a3b34b47-e7ae-4186-a1e6-ecda7ddb38e6.png">
-  </a>
-</div> -->
 
 This package automates the login workflow for IIT Kharagpur ERP.
 
@@ -66,7 +49,6 @@ This package automates the login workflow for IIT Kharagpur ERP.
 <div id="supports"></div>
 
 ### Supports:
-<!-- UPDATE -->
 1. Shells
     * `bash`
     * `zsh`
@@ -126,6 +108,7 @@ func main() {
 - [Chillzone](https://github.com/metakgp/chillzone)
 
 ## Maintainer(s)
+
 - [Shikhar Soni](https://github.com/shikharish)
 
 <p align="right">(<a href="#top">back to top</a>)</p>
