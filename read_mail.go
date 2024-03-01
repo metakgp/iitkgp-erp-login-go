@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"time"
@@ -22,11 +23,12 @@ const (
 	query       = "from:erpkgp@adm.iitkgp.ac.in is:unread subject: otp"
 )
 
-func request_otp(client http.Client, roll_number string, logging bool) {
-	data := map[string][]string{
-		"typeee":  {"SI"},
-		"loginid": {roll_number},
-	}
+func request_otp(client http.Client, loginParams loginDetails, logging bool) {
+	data := url.Values{}
+	data.Set("typeee", "SI")
+	data.Set("user_id", loginParams.user_id)
+	data.Set("password", loginParams.password)
+	data.Set("answer", loginParams.answer)
 
 	res, err := client.PostForm(OTP_URL, data)
 	check_error(err)
@@ -47,30 +49,32 @@ func get_msg_id(service *gmail.Service) string {
 	return ""
 }
 
-func fetch_otp(client *http.Client, roll_number string, logging bool) string {
+func fetch_otp(client *http.Client, loginParams loginDetails, logging bool) string {
 	if is_file("client_secret.json") || is_file(".token") {
-		return fetch_otp_from_mail(client, roll_number, logging)
+		return fetch_otp_from_mail(client, loginParams, logging)
 	} else {
-		return fetch_otp_from_input(client, roll_number)
+		return fetch_otp_from_input(client, loginParams)
 	}
 }
 
-func fetch_otp_from_mail(client *http.Client, roll_number string, logging bool) string {
-	secretByte, err := os.ReadFile("client_secret.json")
-	check_error(err)
-
-	var secret map[string]map[string]string
-	err = json.Unmarshal(secretByte, &secret)
-
+func fetch_otp_from_mail(client *http.Client, loginDetails loginDetails, logging bool) string {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	conf := oauth2.Config{
-		ClientID:     secret["installed"]["client_id"],
-		ClientSecret: secret["installed"]["client_secret"],
-		Scopes:       []string{gmail.GmailReadonlyScope},
-		Endpoint:     google.Endpoint,
-		RedirectURL:  RedirectURL,
+		Scopes:      []string{gmail.GmailReadonlyScope},
+		Endpoint:    google.Endpoint,
+		RedirectURL: RedirectURL,
 	}
+
+	secretByte, err := os.ReadFile("client_secret.json")
+	check_error(err)
+
+	var secret map[string]map[string]json.RawMessage
+	err = json.Unmarshal(secretByte, &secret)
+	check_error(err)
+
+	_ = json.Unmarshal(secret["installed"]["client_id"], &conf.ClientID)
+	_ = json.Unmarshal(secret["installed"]["client_secret"], &conf.ClientSecret)
 
 	var token *oauth2.Token
 
@@ -100,7 +104,7 @@ func fetch_otp_from_mail(client *http.Client, roll_number string, logging bool) 
 	check_error(err)
 
 	latestId := get_msg_id(service)
-	request_otp(*client, roll_number, logging)
+	request_otp(*client, loginDetails, logging)
 	var mailId string
 
 	for {
@@ -129,8 +133,8 @@ func fetch_otp_from_mail(client *http.Client, roll_number string, logging bool) 
 	return otp
 }
 
-func fetch_otp_from_input(client *http.Client, roll_number string) string {
-	request_otp(*client, roll_number, true)
+func fetch_otp_from_input(client *http.Client, loginDetails loginDetails) string {
+	request_otp(*client, loginDetails, true)
 	var otp string
 	fmt.Print("Enter OTP: ")
 	fmt.Scan(&otp)
