@@ -82,6 +82,19 @@ _Now that the environment has been set up and configured to properly compile and
    cd ./iitkgp-erp-login-go
    go mod download
    ```
+3. Create a `erpcreds.json` with following contents for auto-login (optional)
+    ```json
+      {
+        "roll_number": "Enter roll number",
+        "password": "Enter ERP password",
+        "answers": {
+          "Security Question 1": "Answer to security 1",
+          "Security Question 2": "Answer to security 2",
+          "Security Question 3": "Answer to security 3"
+        }
+      }
+    ```
+
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
