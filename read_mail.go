@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -23,6 +25,10 @@ const (
 	query       = "from:erpkgp@adm.iitkgp.ac.in is:unread subject: otp"
 )
 
+type OTPResponse struct {
+	Message               string            `json:"msg"`
+}
+
 func request_otp(client http.Client, loginParams loginDetails, logging bool) {
 	data := url.Values{}
 	data.Set("typeee", "SI")
@@ -34,10 +40,23 @@ func request_otp(client http.Client, loginParams loginDetails, logging bool) {
 	check_error(err)
 	defer res.Body.Close()
 
-	if logging {
-		log.Println("Requested OTP")
+	body, err := io.ReadAll(res.Body)
+	check_error(err)
+
+	var otpResponse OTPResponse
+	err = json.Unmarshal(body, &otpResponse)
+	check_error(err)
+
+	if otpResponse.Message == "An OTP(valid for a short time) has been sent to your email id registered with ERP, IIT Kharagpur. Please use that OTP for further processing. "{
+		if logging {
+			log.Println("Requested OTP")
+		}
+	}else{
+		otpError := fmt.Errorf("failed to request OTP: %w", errors.New(otpResponse.Message))
+		check_error(otpError)
 	}
 }
+
 
 func get_msg_id(service *gmail.Service) string {
 	results, err := service.Users.Messages.List("me").Q(query).MaxResults(1).Do()
