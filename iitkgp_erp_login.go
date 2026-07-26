@@ -115,6 +115,114 @@ func is_otp_required() bool {
 	return pinger.Statistics().PacketsRecv != 1
 }
 
+func normalize_session_token(rawToken string) (string, string, bool) {
+	token := strings.TrimSpace(rawToken)
+	if token == "" {
+		return "", "", false
+	}
+
+	if strings.HasPrefix(token, "ssoToken=") {
+		cookieToken := strings.TrimPrefix(token, "ssoToken=")
+		if cookieToken == "" {
+			return "", "", false
+		}
+		return token, cookieToken, true
+	}
+
+	if strings.Contains(token, "=") {
+		return "", "", false
+	}
+
+	return "ssoToken=" + token, token, true
+}
+
+func clear_session_file(logging bool) {
+	err := os.Remove(".session")
+	if err != nil {
+		if !os.IsNotExist(err) {
+			check_error(err)
+		}
+		return
+	}
+
+	if logging {
+		log.Println("Cleared stale session file")
+	}
+}
+
+func set_sso_cookie(client *http.Client, ssoToken string) {
+	_, cookieToken, ok := normalize_session_token(ssoToken)
+	if !ok {
+		check_error(fmt.Errorf("invalid ssoToken format"))
+	}
+
+	u, err := url.Parse("https://erp.iitkgp.ac.in/")
+	check_error(err)
+
+	client.Jar.SetCookies(u, []*http.Cookie{{Name: "ssoToken", Value: cookieToken}})
+}
+
+func is_invalid_session_response(res *http.Response, responseBody string) bool {
+	if res.StatusCode >= http.StatusBadRequest {
+		return true
+	}
+
+	body := strings.ToLower(responseBody)
+	finalURL := strings.ToLower(res.Request.URL.String())
+
+	invalidURLMarkers := []string{
+		"/ssoadministration/auth.htm",
+		"/ssoadministration/logout.htm",
+		"/ssoadministration/logoutmsg.htm",
+		"/iit_erp3/welcome.jsp",
+	}
+	for _, marker := range invalidURLMarkers {
+		if strings.Contains(finalURL, marker) {
+			return true
+		}
+	}
+
+	invalidBodyMarkers := []string{
+		"you are idle for a long time",
+		"session has been invalidated due to security reasons",
+		"checking idle time, please wait",
+		"<title>logout - erp</title>",
+		"window.open('logoutmsg.htm','_top')",
+		"click here to re-login",
+		"click here to relogin",
+		"invalid session",
+		"name=\"user_id\"",
+		"name='user_id'",
+		"/ssoadministration/auth.htm",
+	}
+	for _, marker := range invalidBodyMarkers {
+		if strings.Contains(body, marker) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func extract_sso_token(responseBody string) (string, bool) {
+	start := strings.Index(responseBody, "ssoToken=")
+	if start == -1 {
+		return "", false
+	}
+
+	tokenAndRest := responseBody[start:]
+	end := strings.IndexAny(tokenAndRest, "\"'&<>\r\n\t ")
+	if end == -1 {
+		return tokenAndRest, true
+	}
+
+	if end <= len("ssoToken=") {
+		return "", false
+	}
+
+	return tokenAndRest[:end], true
+}
+
 func is_session_alive(client *http.Client, logging bool) (bool, string) {
 	if !is_file(".session") {
 		return false, ""
@@ -127,21 +235,40 @@ func is_session_alive(client *http.Client, logging bool) (bool, string) {
 
 	session_byte, err := os.ReadFile(".session")
 	check_error(err)
-	ssoToken := string(session_byte)
+	ssoToken, _, ok := normalize_session_token(string(session_byte))
+	if !ok {
+		if logging {
+			log.Println("Session file is malformed")
+		}
+		clear_session_file(logging)
+		return false, ""
+	}
+
+	set_sso_cookie(client, ssoToken)
 
 	res, err := client.Get(HOMEPAGE_URL + "?" + ssoToken)
 	check_error(err)
 	defer res.Body.Close()
 
+	body, err := io.ReadAll(res.Body)
+	check_error(err)
+
+	sessionInvalid := is_invalid_session_response(res, string(body))
+
 	if logging {
-		if res.ContentLength != 4145 {
+		if !sessionInvalid {
 			log.Println("Session valid")
 		} else {
 			log.Println("Session invalid")
 		}
 	}
 
-	return res.ContentLength != 4145, ssoToken
+	if sessionInvalid {
+		clear_session_file(logging)
+		return false, ""
+	}
+
+	return true, ssoToken
 }
 
 func ERPSession() (*http.Client, string) {
@@ -178,19 +305,25 @@ func ERPSession() (*http.Client, string) {
 		body, err := io.ReadAll(res.Body)
 		check_error(err)
 
-		bodys := string(body)
-		i := strings.Index(bodys, "ssoToken")
-		ssoToken = bodys[strings.LastIndex(bodys[:i], "\"")+1 : strings.Index(bodys, "ssoToken")+strings.Index(bodys[i:], "\"")]
-
-		err = os.WriteFile(".session", []byte(ssoToken), 0666)
-		check_error(err)
+		parsedToken, ok := extract_sso_token(string(body))
+		if !ok {
+			check_error(fmt.Errorf("failed to extract ssoToken from ERP login response"))
+		}
+		ssoToken = parsedToken
 
 	}
 
-	u, err := url.Parse("https://erp.iitkgp.ac.in/")
-	check_error(err)
+	ssoToken, _, ok := normalize_session_token(ssoToken)
+	if !ok {
+		check_error(fmt.Errorf("invalid ssoToken generated during login"))
+	}
 
-	client.Jar.SetCookies(u, []*http.Cookie{{Name: "ssoToken", Value: ssoToken[9:]}})
+	if !isSession {
+		err = os.WriteFile(".session", []byte(ssoToken), 0666)
+		check_error(err)
+	}
+
+	set_sso_cookie(&client, ssoToken)
 
 	return &client, ssoToken
 }
